@@ -455,7 +455,7 @@ class Workbook {
 
     setHeightCell(numRow, sheetName, height) {
         var self = this;
-        var sheet = self.sheets[sheetName];
+        var sheet = self.loadSheet(sheetName);
         if (!sheet) {
             throw new Error("Sheet " + sheetName + " not found");
         }
