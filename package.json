@@ -4,7 +4,8 @@
   "description": "Generate .xlsx (Excel) files from templates built in Excel",
   "main": "./lib/index",
   "files": [
-    "lib"
+    "lib",
+    "src"
   ],
   "author": {
     "name": "Martin Aspeli"
