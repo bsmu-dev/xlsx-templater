@@ -22,15 +22,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "http://github.com/optilude/xlsx-template.git"
+    "url": "https://github.com/bsmu-dev/xlsx-templater.git"
   },
   "bugs": {
-    "url": "http://github.com/optilude/xlsx-template/issues"
+    "url": "https://github.com/bsmu-dev/xlsx-templater/issues"
   },
   "licenses": [
     {
       "type": "MIT",
-      "url": "http://github.com/optilude/xlsx-template/raw/master/LICENSE"
+      "url": "https://github.com/bsmu-dev/xlsx-templater/raw/master/LICENSE"
     }
   ],
   "jest": {
