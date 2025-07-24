@@ -452,6 +452,20 @@ class Workbook {
         self.writeTables(namedTables);
         self.writeDrawing(drawing);
     }
+
+    setHeightCell(numRow, sheetName, height) {
+        var self = this;
+        var sheet = self.sheets[sheetName];
+        if (!sheet) {
+            throw new Error("Sheet " + sheetName + " not found");
+        }
+        var row = sheet.root.findall("sheetData/row").find((row) => numRow == row.attrib["r"]);
+        if (row.attrib["ht"] != undefined) {
+            row.attrib["ht"] = height;
+        }
+        //self.archive.file(sheet.filename, etree.tostring(sheet.root));
+    }
+
     /**
      * Generate a new binary .xlsx file
      */
