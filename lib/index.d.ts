@@ -62,7 +62,7 @@ class XlsxTemplate
     public substitute(sheetName : string | number, substitutions : Object) : void;
     public generate<T extends GenerateOptions>(options : T) : OutputByType[OutputByType];
     public generate() : any;
-    public setHeightCell(numRow : number, sheetName : string, height : number) : void;
+    public setHeightCell(numRow : number, sheetName : string | number, height : number) : void;
     public replaceString(oldString : string, newString : string) : number; // returns idx
     public stringIndex(s : string) : number; // returns idx
     public writeSharedStrings() : void;
