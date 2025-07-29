@@ -12,6 +12,7 @@ var path = require('path'),
 var DOCUMENT_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
     CALC_CHAIN_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain",
     SHARED_STRINGS_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings",
+    STYLES_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles",
     HYPERLINK_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 
 var _get_simple = function (obj, desc) {
@@ -65,12 +66,15 @@ class Workbook {
         this.sheets = [];
         this.sheet = null;
         this.workbook = null;
+        this.styles = null;
         this.workbookPath = null;
         this.contentTypes = null;
         this.prefix = null;
         this.workbookRels = null;
         this.calChainRel = null;
         this.calcChainPath = "";
+        this.stylesRel = null;
+        this.stylesPath = "";
 
         if (data) {
             this.loadTemplate(data);
@@ -212,6 +216,12 @@ class Workbook {
             self.sharedStrings.push(t.text);
             self.sharedStringsLookup[t.text] = self.sharedStrings.length - 1;
         });
+
+        self.stylesRel = self.workbookRels.find("Relationship[@Type='" + STYLES_RELATIONSHIP + "']");
+        if (self.stylesRel) {
+            self.stylesPath = self.prefix + "/" + self.stylesRel.attrib.Target;
+        }
+        self.styles = etree.parse(self.archive.file(self.stylesPath).asText()).getroot();
 
         self.contentTypes = etree.parse(self.archive.file('[Content_Types].xml').asText()).getroot();
         var jpgType = self.contentTypes.find('Default[@Extension="jpg"]');
@@ -453,19 +463,6 @@ class Workbook {
         self.writeDrawing(drawing);
     }
 
-    setHeightCell(numRow, sheetName, height) {
-        var self = this;
-        var sheet = self.loadSheet(sheetName);
-        if (!sheet) {
-            throw new Error("Sheet " + sheetName + " not found");
-        }
-        var row = sheet.root.findall("sheetData/row").find((row) => numRow == row.attrib["r"]);
-        if (row.attrib["ht"] != undefined) {
-            row.attrib["ht"] = height;
-        }
-        //self.archive.file(sheet.filename, etree.tostring(sheet.root));
-    }
-
     /**
      * Generate a new binary .xlsx file
      */
@@ -553,6 +550,9 @@ class Workbook {
         });
 
         return sheets;
+    }
+    loadStyles(workbook) {
+        workbook.findall("styles/")
     }
     // Get sheet a sheet, including filename and name
     loadSheet(sheet) {
@@ -973,9 +973,61 @@ class Workbook {
         } else {
             cell.attrib.t = "s";
             cellValue.text = Number(self.stringIndex(stringified)).toString();
+            self.setOptimalRowHeight(cell, stringified);
         }
 
         return stringified;
+    }
+    setOptimalRowHeight(cell, text) {
+        var self = this;
+        const defaultRowHeight = self.sheet.root.find("sheetFormatPr").attrib["defaultRowHeight"];
+        if (!text) return defaultRowHeight;
+        var cellCol = self.charToNum(self.splitRef(cell.attrib.r).col);
+        var cellRow = self.splitRef(cell.attrib.r).row;
+        // More sophisticated height calculation
+        const fontSize = self.getCellFontSize(cell); // Default font size
+        const lineHeight = fontSize * 1.3; // Standard line height multiplier
+    
+        // Count explicit line breaks
+        const explicitLines = text.split("\n").length;
+    
+        // Calculate wrapped lines based on column width and font
+        const avgCharWidth = fontSize * 0.107; // Approximate character width
+        var cellWidth = 100;
+        var cellHeight = 13;
+        const mergeCell = self.sheet.root.findall("mergeCells/mergeCell").find((mergeCell) => self.cellInMergeCells(cell, mergeCell));
+        if(mergeCell != undefined) {
+            cellWidth = self.getWidthMergeCell(mergeCell, self.sheet);
+            cellHeight = self.getHeightMergeCell(mergeCell, self.sheet);
+        } else {
+            cellWidth = self.getWidthCell(cellCol, self.sheet);
+            cellHeight = self.getHeightCell(cellRow, self.sheet);
+        }
+        const charsPerLine = Math.floor(cellWidth / avgCharWidth);
+    
+        const textWithoutBreaks = text.replace(/\n/g, "");
+        const wrappedLines = Math.ceil(textWithoutBreaks.length / charsPerLine);
+    
+        const totalLines = Math.max(explicitLines, wrappedLines);
+        const calculatedHeight = totalLines * lineHeight;
+    
+        var height = Math.max(13, Math.min(calculatedHeight, 200));
+        if(height > cellHeight) {
+            self.setHeightCell(cellRow, height, self.sheet);
+        }
+    }
+    getCellFontSize(cell) {
+        var self = this;
+        var fonts = self.styles.find("fonts");
+        var cellXfs = self.styles.find("cellXfs");
+        var xfs = cellXfs.findall("xf");
+
+        var xf = xfs.find((xf, i) => i == cell.attrib.s);
+        var font = fonts.findall("font").find((font, i) => i == xf.attrib["fontId"]);
+        if(font) {
+            return font.find("sz").attrib.val;
+        }
+        return 10;
     }
     // Perform substitution of a single value
     substituteScalar(cell, string, placeholder, substitution) {
@@ -1748,16 +1800,23 @@ class Workbook {
         return mergeWidth;
     }
     getHeightCell(numRow, sheet) {
-        var defaultHight = sheet.root.find("sheetFormatPr").attrib["defaultRowHeight"];
-        var finalHeight = defaultHight;
-        sheet.root.findall("sheetData/row").forEach(function (row) {
-            if (numRow == row.attrib["r"]) {
+        var defaultHeight = sheet.root.find("sheetFormatPr").attrib["defaultRowHeight"];
+        var finalHeight = defaultHeight;
+        var row = sheet.root.findall("sheetData/row").find((row) => numRow == row.attrib["r"]);
+        if (row.attrib["ht"] != undefined) {
+            finalHeight = row.attrib["ht"];
+        }
+        return Number.parseFloat(finalHeight);
+    }
+    setHeightCell(numRow, height, sheet) {
+        if(sheet != undefined) {
+            if(sheet.root != undefined) {
+                var row = sheet.root.findall("sheetData/row").find((row) => numRow == row.attrib["r"]);
                 if (row.attrib["ht"] != undefined) {
-                    finalHeight = row.attrib["ht"];
+                    row.attrib["ht"] = height;
                 }
             }
-        });
-        return Number.parseFloat(finalHeight);
+        }
     }
     getHeightMergeCell(mergeCell, sheet) {
         var self = this;

@@ -62,7 +62,6 @@ class XlsxTemplate
     public substitute(sheetName : string | number, substitutions : Object) : void;
     public generate<T extends GenerateOptions>(options : T) : OutputByType[OutputByType];
     public generate() : any;
-    public setHeightCell(numRow : number, sheetName : string | number, height : number) : void;
     public replaceString(oldString : string, newString : string) : number; // returns idx
     public stringIndex(s : string) : number; // returns idx
     public writeSharedStrings() : void;
@@ -113,6 +112,9 @@ class XlsxTemplate
     protected getWidthCell(numCol : number, sheet : etree.ElementTree) : number;
     protected getWidthMergeCell(mergeCell : etree.ElementTree, sheet : etree.ElementTree) : Float32Array
     protected getHeightCell(numRow : number, sheet : etree.ElementTree) : number;
+    protected setHeightCell(numRow : number, height : number, sheet : etree.ElementTree) : void;
+    protected setOptimalRowHeight(cell : etree.ElementTree, text : string) : void;
+    protected getCellFontSize(cell : etree.ElementTree) : number;
     protected getHeightMergeCell(mergeCell : etree.ElementTree, sheet : etree.ElementTree) : Float32Array
     protected getNbRowOfMergeCell(mergeCell : etree.ElementTree) : Int16Array;
     protected pixels(pixels : number) : Int16Array;
