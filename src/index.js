@@ -985,14 +985,14 @@ class Workbook {
         var cellCol = self.charToNum(self.splitRef(cell.attrib.r).col);
         var cellRow = self.splitRef(cell.attrib.r).row;
         // More sophisticated height calculation
-        const fontSize = self.getCellFontSize(cell); // Default font size
+        const font = self.getCellFont(cell);
+        const fontSize = self.getFontSize(font); // Default font size
+        const isBold = self.getFontBold(font);
         const lineHeight = fontSize * 1.3; // Standard line height multiplier
     
         // Count explicit line breaks
         const explicitLines = text.split("\n").length;
-    
-        // Calculate wrapped lines based on column width and font
-        const avgCharWidth = fontSize * 0.107; // Approximate character width
+
         var cellWidth = 100;
         var cellHeight = 13;
         const mergeCell = self.sheet.root.findall("mergeCells/mergeCell").find((mergeCell) => self.cellInMergeCells(cell, mergeCell));
@@ -1003,10 +1003,27 @@ class Workbook {
             cellWidth = self.getWidthCell(cellCol, self.sheet);
             cellHeight = self.getHeightCell(cellRow, self.sheet);
         }
-        const charsPerLine = Math.floor(cellWidth / avgCharWidth);
     
-        const textWithoutBreaks = text.replace(/\n/g, "");
-        const wrappedLines = Math.ceil(textWithoutBreaks.length / charsPerLine);
+        // Calculate wrapped lines based on column width and font
+        const textWithoutBreaks = text.replace(/\n/g, ' ');
+        const explicitWords = textWithoutBreaks.split(' ');
+        var wrappedLines = 1;
+        var lineWidth = 0;
+        for(let i = 0; i < explicitWords.length; i++) {
+            const word = explicitWords[i];
+            const wordWidth = self.calculateWordWidth(word, fontSize, isBold);
+            if(lineWidth + wordWidth > cellWidth) {
+                if(lineWidth > 0) {
+                    lineWidth = 0;
+                    i--;
+                } else {
+                    lineWidth += wordWidth - cellWidth;
+                }
+                wrappedLines++;
+            } else lineWidth += wordWidth;
+        }
+
+        //const wrappedLines = Math.ceil(textWithoutBreaks.length / charsPerLine);
     
         const totalLines = Math.max(explicitLines, wrappedLines);
         const calculatedHeight = totalLines * lineHeight;
@@ -1016,7 +1033,20 @@ class Workbook {
             self.setHeightCell(cellRow, height, self.sheet);
         }
     }
-    getCellFontSize(cell) {
+    calculateWordWidth(word, fontSize, isBold) {
+        const charWidth = fontSize * 0.112;
+        const boldMultiplier = isBold ? 1.05 : 1;
+        var capitalLetters = 0;
+        var letters = 0;
+        for(let i = 0; i < word.length; i++) {
+            const charCode = word.charCodeAt(i);
+            if(charCode >= 1040 && charCode <= 1071)
+                capitalLetters++;
+            else letters++;
+        }
+        return (capitalLetters * charWidth * 1.5 + letters * charWidth) * boldMultiplier;
+    }
+    getCellFont(cell) {
         var self = this;
         var fonts = self.styles.find("fonts");
         var cellXfs = self.styles.find("cellXfs");
@@ -1024,10 +1054,19 @@ class Workbook {
 
         var xf = xfs.find((xf, i) => i == cell.attrib.s);
         var font = fonts.findall("font").find((font, i) => i == xf.attrib["fontId"]);
+        return font;
+    }
+    getFontSize(font) {
         if(font) {
             return font.find("sz").attrib.val;
         }
         return 10;
+    }
+    getFontBold(font) {
+        if(font) {
+            return font.find("b") ? true : false;
+        }
+        return false;
     }
     // Perform substitution of a single value
     substituteScalar(cell, string, placeholder, substitution) {
